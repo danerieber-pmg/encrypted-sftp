@@ -9,5 +9,5 @@ const sftp = new EncryptedSftp({
   privateKeyArmored: fs.readFileSync('keys/private.pgp', 'utf8'),
 });
 
-await sftp.put('dev/file.txt', 'writeable/file.txt.pgp');
-await sftp.get('writeable/file.txt.pgp', 'dev/file2.txt');
+await sftp.put('dev/bigfile.txt', 'writeable/bigfile.txt.pgp');
+await sftp.get('writeable/bigfile.txt.pgp', 'dev/bigfile2.txt');

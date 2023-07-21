@@ -11,7 +11,8 @@
   "license": "ISC",
   "dependencies": {
     "openpgp": "^5.9.0",
-    "ssh2-sftp-client": "^9.1.0"
+    "ssh2-sftp-client": "^9.1.0",
+    "tmp-promise": "^3.0.3"
   },
   "devDependencies": {
     "eslint": "^8.45.0",

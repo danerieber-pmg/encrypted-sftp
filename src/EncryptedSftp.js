@@ -1,6 +1,7 @@
 import fs from 'fs';
 import * as openpgp from 'openpgp';
 import Client from 'ssh2-sftp-client';
+import { withFile } from 'tmp-promise';
 
 // All encryption is armored and requires utf8 encoding
 const encoding = 'utf8';
@@ -25,50 +26,54 @@ export default class EncryptedSftp {
   // Download a file and decrypt it
   async get(remotePath, localPath) {
     await this.readKeys();
-    const encryptedPath = `${localPath}.pgp`;
 
-    // Download from SFTP
-    const client = new Client('alli-client');
-    await client.connect(this.config);
-    await client.fastGet(remotePath, encryptedPath);
-    await client.end();
+    // Create temporary file to write encrypted data
+    return withFile(async ({ path }) => {
+      // Download from SFTP
+      const client = new Client('alli-client');
+      await client.connect(this.config);
+      await client.fastGet(remotePath, path);
+      await client.end();
 
-    // Create file Streams
-    const encryptedFile = fs.createReadStream(encryptedPath, { encoding });
-    const file = fs.createWriteStream(localPath, { encoding });
+      // Create file Streams
+      const encryptedFile = fs.createReadStream(path, { encoding });
+      const outFile = fs.createWriteStream(localPath, { encoding });
 
-    // Decrypt encryptedFile and pipe into file
-    const message = await openpgp.readMessage({ armoredMessage: encryptedFile });
-    const { data: decrypted } = await openpgp.decrypt({
-      message,
-      verificationKeys: this.publicKey,
-      decryptionKeys: this.privateKey,
+      // Decrypt encryptedFile and pipe into outFile
+      const message = await openpgp.readMessage({ armoredMessage: encryptedFile });
+      const { data: decrypted } = await openpgp.decrypt({
+        message,
+        verificationKeys: this.publicKey,
+        decryptionKeys: this.privateKey,
+      });
+      decrypted.pipe(outFile);
     });
-    decrypted.pipe(file);
   }
 
   // Encrypt a file and upload it
   async put(localPath, remotePath) {
     await this.readKeys();
-    const encryptedPath = `${localPath}.pgp`;
 
-    // Create file Streams
-    const file = fs.createReadStream(localPath, { encoding });
-    const encryptedFile = fs.createWriteStream(encryptedPath, { encoding });
+    // Create temporary file to write encrypted data
+    return withFile(async ({ path }) => {
+      // Create file Streams
+      const inFile = fs.createReadStream(localPath, { encoding });
+      const encryptedFile = fs.createWriteStream(path, { encoding });
 
-    // Encrypt file and pipe into encryptedFile
-    const message = await openpgp.createMessage({ text: file });
-    const encrypted = await openpgp.encrypt({
-      message,
-      encryptionKeys: this.publicKey,
-      signingKeys: this.privateKey,
+      // Encrypt inFile and pipe into encryptedFile
+      const message = await openpgp.createMessage({ text: inFile });
+      const encrypted = await openpgp.encrypt({
+        message,
+        encryptionKeys: this.publicKey,
+        signingKeys: this.privateKey,
+      });
+      encrypted.pipe(encryptedFile);
+
+      // Upload to SFTP
+      const client = new Client('alli-client');
+      await client.connect(this.config);
+      await client.fastPut(path, remotePath);
+      await client.end();
     });
-    encrypted.pipe(encryptedFile);
-
-    // Upload to SFTP
-    const client = new Client('alli-client');
-    await client.connect(this.config);
-    await client.fastPut(encryptedPath, remotePath);
-    await client.end();
   }
 }
