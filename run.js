@@ -5,10 +5,9 @@ const sftp = new EncryptedSftp({
   host: process.env.SFTP_HOST,
   username: process.env.SFTP_USERNAME,
   password: process.env.SFTP_PASSWORD,
+  publicKeyArmored: fs.readFileSync('keys/public.pgp', 'utf8'),
+  privateKeyArmored: fs.readFileSync('keys/private.pgp', 'utf8'),
 });
 
-const publicKeyArmored = fs.readFileSync('keys/public.pgp', 'utf8');
-const privateKeyArmored = fs.readFileSync('keys/private.pgp', 'utf8');
-await sftp.setKeys(publicKeyArmored, privateKeyArmored);
-
-await sftp.get('writeable/bigfile.txt.gpg', 'dev/test.txt.gpg').decrypt('dev/test.txt').armored();
+await sftp.put('dev/file.txt', 'writeable/file.txt.pgp');
+await sftp.get('writeable/file.txt.pgp', 'dev/file2.txt');
